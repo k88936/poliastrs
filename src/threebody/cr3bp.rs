@@ -67,4 +67,11 @@ mod tests {
         let c = jacobi_constant(&state, mu).unwrap();
         assert_relative_eq!(c, 3.1781344535722202, epsilon = 1e-12);
     }
+
+    #[test]
+    fn invalid_mu_returns_error() {
+        let state = Cr3bpState::from_row_slice(&[0.8, 0.1, 0.0, 0.02, -0.01, 0.0]);
+        assert!(state_derivative(&state, 0.5).is_err());
+        assert!(jacobi_constant(&state, -1.0).is_err());
+    }
 }

@@ -10,3 +10,9 @@ pub const EARTH: Body = Body {
     mu_km3_s2: 398600.4418,
     mean_radius_km: 6378.1363,
 };
+
+pub const SUN: Body = Body {
+    name: "Sun",
+    mu_km3_s2: 132_712_440_018.0,
+    mean_radius_km: 695_700.0,
+};

@@ -12,6 +12,16 @@ pub struct ClassicalElements {
     pub nu_rad: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EquinoctialElements {
+    pub p_km: f64,
+    pub f: f64,
+    pub g: f64,
+    pub h: f64,
+    pub k: f64,
+    pub l_rad: f64,
+}
+
 pub fn coe2rv(mu_km3_s2: f64, coe: ClassicalElements) -> CartesianState {
     let p = coe.p_km;
     let e = coe.ecc;
@@ -110,4 +120,44 @@ fn rotation_313(raan: f64, inc: f64, argp: f64) -> Matrix3<f64> {
         cw * si,
         ci,
     )
+}
+
+pub fn coe2mee(coe: ClassicalElements) -> Result<EquinoctialElements, &'static str> {
+    if (coe.inc_rad - std::f64::consts::PI).abs() < 1e-12 {
+        return Err(
+            "Cannot compute modified equinoctial set for 180 degrees orbit inclination due to `h` and `k` singularity.",
+        );
+    }
+    let lonper = coe.raan_rad + coe.argp_rad;
+    let f = coe.ecc * lonper.cos();
+    let g = coe.ecc * lonper.sin();
+    let tan_half_i = (coe.inc_rad / 2.0).tan();
+    let h = tan_half_i * coe.raan_rad.cos();
+    let k = tan_half_i * coe.raan_rad.sin();
+    let l_rad = lonper + coe.nu_rad;
+    Ok(EquinoctialElements {
+        p_km: coe.p_km,
+        f,
+        g,
+        h,
+        k,
+        l_rad,
+    })
+}
+
+pub fn mee2coe(mee: EquinoctialElements) -> ClassicalElements {
+    let ecc = (mee.f * mee.f + mee.g * mee.g).sqrt();
+    let raan_rad = mee.k.atan2(mee.h).rem_euclid(std::f64::consts::TAU);
+    let inc_rad = 2.0 * (mee.h * mee.h + mee.k * mee.k).sqrt().atan();
+    let lonper = mee.g.atan2(mee.f).rem_euclid(std::f64::consts::TAU);
+    let argp_rad = (lonper - raan_rad).rem_euclid(std::f64::consts::TAU);
+    let nu_rad = (mee.l_rad - lonper).rem_euclid(std::f64::consts::TAU);
+    ClassicalElements {
+        p_km: mee.p_km,
+        ecc,
+        inc_rad,
+        raan_rad,
+        argp_rad,
+        nu_rad,
+    }
 }

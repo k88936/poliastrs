@@ -82,4 +82,10 @@ mod tests {
             assert_relative_eq!(collinear_equation(x, mu), 0.0, epsilon = 1e-11);
         }
     }
+
+    #[test]
+    fn invalid_mass_parameter_returns_error() {
+        assert!(collinear_lagrange_x(0.0, CollinearPoint::L1).is_err());
+        assert!(triangular_lagrange_points(0.6).is_err());
+    }
 }
