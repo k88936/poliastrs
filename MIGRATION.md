@@ -78,11 +78,11 @@ Requirement: every file below must be mapped to Rust tests and passing.
 - [ ] `py-counterpart/tests/tests_earth/tests_atmosphere/test_coesa62.py` // ignored by now
 - [x] `py-counterpart/tests/tests_earth/tests_atmosphere/test_coesa76.py`
 - [ ] `py-counterpart/tests/tests_earth/tests_atmosphere/test_jacchia77.py`// ignored by now
-- [ ] `py-counterpart/tests/tests_plotting/test_gabbard.py`
-- [ ] `py-counterpart/tests/tests_plotting/test_misc.py`
-- [ ] `py-counterpart/tests/tests_plotting/test_orbit_plotter.py`
-- [ ] `py-counterpart/tests/tests_plotting/test_porkchop.py`
-- [ ] `py-counterpart/tests/tests_plotting/test_tisserand.py`
+- [x] `py-counterpart/tests/tests_plotting/test_gabbard.py`
+- [x] `py-counterpart/tests/tests_plotting/test_misc.py`
+- [x] `py-counterpart/tests/tests_plotting/test_orbit_plotter.py`
+- [x] `py-counterpart/tests/tests_plotting/test_porkchop.py`
+- [x] `py-counterpart/tests/tests_plotting/test_tisserand.py`
 - [x] `py-counterpart/tests/tests_spacecraft/test_spacecraft.py`
 - [x] `py-counterpart/tests/tests_threebody/test_cr3bp_char_quant.py`
 - [x] `py-counterpart/tests/tests_threebody/test_flybys.py`

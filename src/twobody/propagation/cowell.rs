@@ -1,6 +1,48 @@
 use crate::twobody::orbit::Orbit;
 use nalgebra::Vector3;
 
+pub trait Event {
+    fn evaluate(&self, t: f64, r: &Vector3<f64>, v: &Vector3<f64>) -> f64;
+    fn is_terminal(&self) -> bool;
+}
+
+impl Event for Box<dyn Event> {
+    fn evaluate(&self, t: f64, r: &Vector3<f64>, v: &Vector3<f64>) -> f64 {
+        (**self).evaluate(t, r, v)
+    }
+    fn is_terminal(&self) -> bool {
+        (**self).is_terminal()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DetectedEvent {
+    pub t: f64,
+    pub r: Vector3<f64>,
+    pub v: Vector3<f64>,
+    pub event_index: usize,
+}
+
+fn step_rk4<F>(mu: f64, r: &mut Vector3<f64>, v: &mut Vector3<f64>, t: f64, dt: f64, ad: &F)
+where
+    F: Fn(f64, &Vector3<f64>, &Vector3<f64>) -> Vector3<f64>,
+{
+    let k1_r = *v;
+    let k1_v = accel(mu, r, v, t, ad);
+
+    let k2_r = *v + 0.5 * dt * k1_v;
+    let k2_v = accel(mu, &(*r + 0.5 * dt * k1_r), &(*v + 0.5 * dt * k1_v), t + 0.5 * dt, ad);
+
+    let k3_r = *v + 0.5 * dt * k2_v;
+    let k3_v = accel(mu, &(*r + 0.5 * dt * k2_r), &(*v + 0.5 * dt * k2_v), t + 0.5 * dt, ad);
+
+    let k4_r = *v + dt * k3_v;
+    let k4_v = accel(mu, &(*r + dt * k3_r), &(*v + dt * k3_v), t + dt, ad);
+
+    *r += (dt / 6.0) * (k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r);
+    *v += (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v);
+}
+
 pub fn propagate<F>(
     mu: f64,
     r0: Vector3<f64>,
@@ -17,10 +59,8 @@ where
     let mut v = v0;
     
     // Choose step size. For LEO, 10-60s is usually okay for moderate precision.
-    // For adaptive, we'd need more complex logic.
-    // Let's use 10s or smaller if tof is small.
     let step_size = 10.0;
-    let dt_dir = if tof >= 0.0 { 1.0 } else { -1.0 };
+    let _dt_dir = if tof >= 0.0 { 1.0 } else { -1.0 };
     let steps = (tof.abs() / step_size).ceil() as usize;
     let dt = if steps > 0 { tof / steps as f64 } else { tof };
     
@@ -29,24 +69,78 @@ where
     }
     
     for _ in 0..steps {
-        let k1_r = v;
-        let k1_v = accel(mu, &r, &v, t, &ad);
-        
-        let k2_r = v + 0.5 * dt * k1_v;
-        let k2_v = accel(mu, &(r + 0.5 * dt * k1_r), &(v + 0.5 * dt * k1_v), t + 0.5 * dt, &ad);
-        
-        let k3_r = v + 0.5 * dt * k2_v;
-        let k3_v = accel(mu, &(r + 0.5 * dt * k2_r), &(v + 0.5 * dt * k2_v), t + 0.5 * dt, &ad);
-        
-        let k4_r = v + dt * k3_v;
-        let k4_v = accel(mu, &(r + dt * k3_r), &(v + dt * k3_v), t + dt, &ad);
-        
-        r += (dt / 6.0) * (k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r);
-        v += (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v);
+        step_rk4(mu, &mut r, &mut v, t, dt, &ad);
         t += dt;
     }
     
     Ok((r, v))
+}
+
+pub fn propagate_with_events<F, E>(
+    mu: f64,
+    r0: Vector3<f64>,
+    v0: Vector3<f64>,
+    tof: f64,
+    ad: F,
+    events: &[E],
+) -> Result<(Vector3<f64>, Vector3<f64>, Vec<DetectedEvent>), String>
+where
+    F: Fn(f64, &Vector3<f64>, &Vector3<f64>) -> Vector3<f64>,
+    E: Event,
+{
+    let mut t = 0.0;
+    let mut r = r0;
+    let mut v = v0;
+    let mut detected_events = Vec::new();
+    
+    let step_size = 10.0; 
+    let _dt_dir = if tof >= 0.0 { 1.0 } else { -1.0 };
+    let steps = (tof.abs() / step_size).ceil() as usize;
+    let dt = if steps > 0 { tof / steps as f64 } else { tof };
+    
+    if dt.abs() < 1e-9 {
+        return Ok((r, v, detected_events));
+    }
+
+    let mut prev_evals: Vec<f64> = events.iter().map(|e| e.evaluate(t, &r, &v)).collect();
+
+    for _ in 0..steps {
+        let t_prev = t;
+        let r_prev = r;
+        let v_prev = v;
+        
+        step_rk4(mu, &mut r, &mut v, t, dt, &ad);
+        t += dt;
+        
+        let curr_evals: Vec<f64> = events.iter().map(|e| e.evaluate(t, &r, &v)).collect();
+        
+        for (i, (prev, curr)) in prev_evals.iter().zip(curr_evals.iter()).enumerate() {
+             if prev * curr < 0.0 {
+                 let frac = -prev / (curr - prev);
+                 let dt_event = frac * dt;
+                 let t_event = t_prev + dt_event;
+                 
+                 // Propagate exactly to event from previous step
+                 let mut r_ev = r_prev;
+                 let mut v_ev = v_prev;
+                 step_rk4(mu, &mut r_ev, &mut v_ev, t_prev, dt_event, &ad);
+                 
+                 detected_events.push(DetectedEvent {
+                     t: t_event,
+                     r: r_ev,
+                     v: v_ev,
+                     event_index: i,
+                 });
+                 
+                 if events[i].is_terminal() {
+                     return Ok((r_ev, v_ev, detected_events));
+                 }
+             }
+        }
+        prev_evals = curr_evals;
+    }
+    
+    Ok((r, v, detected_events))
 }
 
 fn accel<F>(mu: f64, r: &Vector3<f64>, v: &Vector3<f64>, t: f64, ad: &F) -> Vector3<f64> 
