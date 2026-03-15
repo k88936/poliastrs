@@ -1,6 +1,7 @@
 use nalgebra::Vector3;
 use std::f64::consts::PI;
 use crate::twobody::orbit::Orbit;
+use crate::iod::izzo;
 
 #[derive(Debug, Clone)]
 pub struct Maneuver {
@@ -24,6 +25,32 @@ impl Maneuver {
 
     pub fn get_total_time(&self) -> f64 {
         self.impulses.iter().map(|(dt, _)| *dt).sum()
+    }
+
+    pub fn lambert(orbit_i: &Orbit, orbit_f: &Orbit) -> Result<Self, String> {
+        let tof = orbit_f.epoch_tdb_seconds - orbit_i.epoch_tdb_seconds;
+        if tof <= 0.0 {
+            return Err("Epoch of initial orbit greater than epoch of final orbit, causing a negative time of flight".to_string());
+        }
+
+        let mu = orbit_i.attractor.mu_km3_s2;
+        let r1 = orbit_i.state.r_km;
+        let r2 = orbit_f.state.r_km;
+
+        // Use Izzo algorithm with default parameters matching poliastro
+        // M=0, prograde=true, low_path=true, num_iter=35, rtol=1e-8
+        let (v1, v2) = izzo(mu, r1, r2, tof, 0, true, true, 35, 1e-8)
+            .map_err(|e| format!("Lambert solver failed: {:?}", e))?;
+
+        let dv1 = v1 - orbit_i.state.v_km_s;
+        let dv2 = orbit_f.state.v_km_s - v2;
+
+        Ok(Self {
+            impulses: vec![
+                (0.0, dv1),
+                (tof, dv2),
+            ],
+        })
     }
 
     pub fn hohmann(orbit_i: &Orbit, r_f: f64) -> Self {
@@ -164,5 +191,38 @@ mod tests {
         let orb_f = orb_i.apply_maneuver(&man);
         assert_relative_eq!(orb_f.ecc(), 0.0, epsilon = 1e-12);
         // assert_relative_eq!(orb_f.a_km(), r_f, epsilon = 1e-3);
+    }
+
+    #[test]
+    fn test_lambert_maneuver_tof_exception() {
+        let orb_i = Orbit::from_keplerian(
+            EARTH,
+            7000.0,
+            0.0,
+            0.0, // inc
+            0.0, // raan
+            0.0, // argp
+            0.0, // nu
+            100.0, // epoch
+            Plane::EarthEquator,
+        );
+        let orb_f = Orbit::from_keplerian(
+            EARTH,
+            7000.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            50.0, // epoch < orb_i epoch
+            Plane::EarthEquator,
+        );
+
+        let result = Maneuver::lambert(&orb_i, &orb_f);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Epoch of initial orbit greater than epoch of final orbit, causing a negative time of flight"
+        );
     }
 }

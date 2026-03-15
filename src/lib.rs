@@ -1,6 +1,9 @@
 pub mod bodies;
 pub mod constants;
 pub mod core;
+pub mod earth;
+pub mod ephem;
+pub mod spacecraft;
 pub mod frames;
 pub mod iod;
 pub mod maneuvers;

@@ -1,4 +1,63 @@
 use crate::twobody::orbit::Orbit;
+use nalgebra::Vector3;
+
+pub fn propagate<F>(
+    mu: f64,
+    r0: Vector3<f64>,
+    v0: Vector3<f64>,
+    tof: f64,
+    ad: F,
+) -> Result<(Vector3<f64>, Vector3<f64>), String>
+where
+    F: Fn(f64, &Vector3<f64>, &Vector3<f64>) -> Vector3<f64>,
+{
+    // RK4 implementation with fixed step size
+    let mut t = 0.0;
+    let mut r = r0;
+    let mut v = v0;
+    
+    // Choose step size. For LEO, 10-60s is usually okay for moderate precision.
+    // For adaptive, we'd need more complex logic.
+    // Let's use 10s or smaller if tof is small.
+    let step_size = 10.0;
+    let dt_dir = if tof >= 0.0 { 1.0 } else { -1.0 };
+    let steps = (tof.abs() / step_size).ceil() as usize;
+    let dt = if steps > 0 { tof / steps as f64 } else { tof };
+    
+    if dt.abs() < 1e-9 {
+        return Ok((r, v));
+    }
+    
+    for _ in 0..steps {
+        let k1_r = v;
+        let k1_v = accel(mu, &r, &v, t, &ad);
+        
+        let k2_r = v + 0.5 * dt * k1_v;
+        let k2_v = accel(mu, &(r + 0.5 * dt * k1_r), &(v + 0.5 * dt * k1_v), t + 0.5 * dt, &ad);
+        
+        let k3_r = v + 0.5 * dt * k2_v;
+        let k3_v = accel(mu, &(r + 0.5 * dt * k2_r), &(v + 0.5 * dt * k2_v), t + 0.5 * dt, &ad);
+        
+        let k4_r = v + dt * k3_v;
+        let k4_v = accel(mu, &(r + dt * k3_r), &(v + dt * k3_v), t + dt, &ad);
+        
+        r += (dt / 6.0) * (k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r);
+        v += (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v);
+        t += dt;
+    }
+    
+    Ok((r, v))
+}
+
+fn accel<F>(mu: f64, r: &Vector3<f64>, v: &Vector3<f64>, t: f64, ad: &F) -> Vector3<f64> 
+where F: Fn(f64, &Vector3<f64>, &Vector3<f64>) -> Vector3<f64> 
+{
+    let r_norm_sq = r.norm_squared();
+    let r_norm = r_norm_sq.sqrt();
+    let a_kepler = -mu * r / (r_norm_sq * r_norm);
+    let a_pert = ad(t, r, v);
+    a_kepler + a_pert
+}
 
 pub fn propagate_many(orbit: Orbit, tofs_s: &[f64]) -> Vec<Orbit> {
     tofs_s

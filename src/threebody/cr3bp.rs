@@ -35,6 +35,14 @@ impl SystemChars {
     }
 }
 
+pub fn calculate_mu(mu1: f64, mu2: f64) -> f64 {
+    mu2 / (mu1 + mu2)
+}
+
+pub fn calculate_tstar(mu1: f64, mu2: f64, lstar: f64) -> f64 {
+    (lstar.powi(3) / (mu1 + mu2)).sqrt()
+}
+
 pub type Cr3bpState = SVector<f64, 6>;
 
 pub fn state_derivative(state: &Cr3bpState, mu: f64) -> Result<Cr3bpState, ThreeBodyError> {
@@ -81,7 +89,30 @@ mod tests {
     use crate::bodies::{EARTH, MOON};
     use crate::threebody::lagrange::triangular_lagrange_points;
 
-    use super::{Cr3bpState, SystemChars, jacobi_constant, state_derivative};
+    use super::{Cr3bpState, SystemChars, jacobi_constant, state_derivative, calculate_mu, calculate_tstar};
+
+    #[test]
+    fn test_calculate_mu() {
+        let mu1 = EARTH.mu_km3_s2;
+        let mu2 = MOON.mu_km3_s2;
+        // Expected from python test
+        let expected_mu = 1.215058560962404e-02;
+        
+        let mu = calculate_mu(mu1, mu2);
+        assert_relative_eq!(mu, expected_mu, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_calculate_tstar() {
+        let mu1 = EARTH.mu_km3_s2;
+        let mu2 = MOON.mu_km3_s2;
+        let lstar = 389703.2648292776;
+        let expected_tstar = 382981.2891290545;
+        
+        let tstar = calculate_tstar(mu1, mu2, lstar);
+        // Use relative tolerance
+        assert_relative_eq!(tstar, expected_tstar, max_relative = 1e-6);
+    }
 
     #[test]
     fn system_chars_earth_moon() {
