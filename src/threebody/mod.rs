@@ -9,4 +9,5 @@ pub enum ThreeBodyError {
     InvalidMassRatio,
     InvalidFlybyInput,
     NonConvergentSolver,
+    MissingSemiMajorAxis,
 }

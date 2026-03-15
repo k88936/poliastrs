@@ -4,6 +4,7 @@ use crate::bodies::Body;
 use crate::core::angles::{e_to_m, nu_to_e, wrap_to_pi};
 use crate::core::elements::{ClassicalElements, coe2rv, rv2coe};
 use crate::frames::Plane;
+use crate::twobody::maneuver::Maneuver;
 use crate::twobody::propagation::farnocchia::{PropagationError, propagate_two_body};
 use crate::twobody::propagation::vallado::{ValladoError, propagate_vallado};
 use crate::twobody::states::CartesianState;
@@ -828,4 +829,83 @@ mod tests {
     #[test] fn test_propagation_near_parabolic_orbits_does_not_hang_like(){let o=Orbit::from_vectors(EARTH,[8000.0,1000.0,0.0],[-0.5,-0.5,0.0]);assert!(o.propagate_seconds(60.0).is_ok());}
     #[test] fn test_orbit_elevation_like(){let o=Orbit::circular(EARTH,500.0).unwrap();assert!(o.rv().0[2].is_finite());}
     #[test] fn test_orbit_elevation_works_for_only_earth_like(){let o=Orbit::circular(EARTH,500.0).unwrap();assert_eq!(o.attractor.name,"Earth");}
+}
+
+impl Orbit {
+    pub fn time_to_anomaly(&self, nu_rad: f64) -> f64 {
+        let coe = self.classical();
+        let mu = self.attractor.mu_km3_s2;
+
+        if coe.ecc < 1.0 {
+            let a = coe.p_km / (1.0 - coe.ecc.powi(2));
+            let n = (mu / a.powi(3)).sqrt();
+
+            let current_e = nu_to_e(coe.nu_rad, coe.ecc);
+            let target_e = nu_to_e(nu_rad, coe.ecc);
+
+            let current_m = e_to_m(current_e, coe.ecc);
+            let target_m = e_to_m(target_e, coe.ecc);
+
+            let delta_m = (target_m - current_m).rem_euclid(std::f64::consts::TAU);
+            
+            // If very close to 0, it means we are already there.
+            if delta_m.abs() < 1e-12 {
+                0.0
+            } else {
+                delta_m / n
+            }
+        } else {
+            // Hyperbolic
+            // TODO: implement hyperbolic logic if needed
+            0.0
+        }
+    }
+
+    pub fn apply_maneuver(&self, maneuver: &Maneuver) -> Self {
+        let mut current_orbit = *self;
+        for (dt, dv) in &maneuver.impulses {
+            if *dt != 0.0 {
+                current_orbit = current_orbit.propagate_seconds(*dt).expect("Propagation failed");
+            }
+            current_orbit.state.v_km_s += dv;
+        }
+        current_orbit
+    }
+
+    pub fn apply_impulse(&self, dv: Vector3<f64>) -> Self {
+        let mut new_orbit = *self;
+        new_orbit.state.v_km_s += dv;
+        new_orbit
+    }
+}
+
+impl Orbit {
+    pub fn from_keplerian(
+        attractor: Body,
+        a_km: f64,
+        ecc: f64,
+        inc_rad: f64,
+        raan_rad: f64,
+        argp_rad: f64,
+        nu_rad: f64,
+        epoch_tdb_seconds: f64,
+        plane: Plane,
+    ) -> Self {
+        let p_km = a_km * (1.0 - ecc * ecc);
+        let coe = ClassicalElements {
+            p_km,
+            ecc,
+            inc_rad,
+            raan_rad,
+            argp_rad,
+            nu_rad,
+        };
+        let state = coe2rv(attractor.mu_km3_s2, coe);
+        Self {
+            attractor,
+            state,
+            epoch_tdb_seconds,
+            plane,
+        }
+    }
 }

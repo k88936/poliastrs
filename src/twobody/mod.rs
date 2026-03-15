@@ -1,6 +1,7 @@
 pub mod angles;
 pub mod elements;
 pub mod events;
+pub mod maneuver;
 pub mod mean_elements;
 pub mod orbit;
 pub mod propagation;

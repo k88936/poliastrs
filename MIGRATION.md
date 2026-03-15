@@ -50,3 +50,51 @@ Comprehensive inventory of the Python poliastro API surface completed with a pri
 2. **Numba JIT**: Python uses @jit for speed; Rust is natively fast
 3. **Array Broadcasting**: NumPy style; Rust needs explicit loops or ndarray
 4. **Quaternions**: Less needed in basic two-body; defer to Phase 2
+
+---
+
+## Test Migration TODO Checklist (Mandatory Full Parity)
+
+Source of truth: `py-counterpart/tests/**/test_*.py`  
+Requirement: every file below must be mapped to Rust tests and passing.
+
+- [ ] `py-counterpart/tests/test_bodies.py`
+- [ ] `py-counterpart/tests/test_czml.py`
+- [ ] `py-counterpart/tests/test_ephem.py`
+- [ ] `py-counterpart/tests/test_examples.py`
+- [ ] `py-counterpart/tests/test_frames.py`
+- [ ] `py-counterpart/tests/test_hyper.py`
+- [ ] `py-counterpart/tests/test_iod.py`
+- [ ] `py-counterpart/tests/test_maneuver.py`
+- [ ] `py-counterpart/tests/test_sensors.py`
+- [ ] `py-counterpart/tests/test_spheroid_location.py`
+- [ ] `py-counterpart/tests/test_stumpff.py`
+- [ ] `py-counterpart/tests/test_util.py`
+- [ ] `py-counterpart/tests/tests_core/test_core_propagation.py`
+- [ ] `py-counterpart/tests/tests_core/test_core_util.py`
+- [ ] `py-counterpart/tests/tests_core/tests_threebody/test_cr3bp_quantities_calculations.py`
+- [ ] `py-counterpart/tests/tests_earth/test_earth_util.py`
+- [ ] `py-counterpart/tests/tests_earth/test_earthsatellite.py`
+- [ ] `py-counterpart/tests/tests_earth/tests_atmosphere/test_coesa62.py`
+- [ ] `py-counterpart/tests/tests_earth/tests_atmosphere/test_coesa76.py`
+- [ ] `py-counterpart/tests/tests_earth/tests_atmosphere/test_jacchia77.py`
+- [ ] `py-counterpart/tests/tests_plotting/test_gabbard.py`
+- [ ] `py-counterpart/tests/tests_plotting/test_misc.py`
+- [ ] `py-counterpart/tests/tests_plotting/test_orbit_plotter.py`
+- [ ] `py-counterpart/tests/tests_plotting/test_porkchop.py`
+- [ ] `py-counterpart/tests/tests_plotting/test_tisserand.py`
+- [ ] `py-counterpart/tests/tests_spacecraft/test_spacecraft.py`
+- [x] `py-counterpart/tests/tests_threebody/test_cr3bp_char_quant.py`
+- [x] `py-counterpart/tests/tests_threebody/test_flybys.py`
+- [x] `py-counterpart/tests/tests_threebody/test_restricted.py`
+- [x] `py-counterpart/tests/tests_threebody/test_soi.py`
+- [x] `py-counterpart/tests/tests_twobody/test_angles.py`
+- [x] `py-counterpart/tests/tests_twobody/test_elements.py`
+- [x] `py-counterpart/tests/tests_twobody/test_events.py`
+- [x] `py-counterpart/tests/tests_twobody/test_mean_elements.py`
+- [x] `py-counterpart/tests/tests_twobody/test_orbit.py`
+- [x] `py-counterpart/tests/tests_twobody/test_perturbations.py`
+- [x] `py-counterpart/tests/tests_twobody/test_propagation.py`
+- [x] `py-counterpart/tests/tests_twobody/test_sampling.py`
+- [x] `py-counterpart/tests/tests_twobody/test_states.py`
+- [x] `py-counterpart/tests/tests_twobody/test_thrust.py`

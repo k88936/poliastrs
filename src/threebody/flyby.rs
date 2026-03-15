@@ -32,7 +32,8 @@ pub fn compute_flyby(
     };
     let t_hat = s_hat.cross(&ref_hat).normalize();
     let r_hat = t_hat.cross(&s_hat).normalize();
-    let b_hat = t_hat * b_plane_angle_rad.cos() + r_hat * b_plane_angle_rad.sin();
+    // Curtis 3rd Ed, Eq 8.35: B = R cos(theta) + T sin(theta)
+    let b_hat = r_hat * b_plane_angle_rad.cos() + t_hat * b_plane_angle_rad.sin();
     let n_hat = b_hat.cross(&s_hat).normalize();
     let vinf_out_hat = s_hat * delta.cos() + n_hat * delta.sin();
 
@@ -44,7 +45,28 @@ mod tests {
     use approx::assert_relative_eq;
     use nalgebra::Vector3;
 
+    use crate::bodies::VENUS;
     use super::compute_flyby;
+
+    #[test]
+    fn flyby_venus_curtis_example() {
+        // Data from Curtis, Example 8.6
+        let v_sc = Vector3::new(37.51, 2.782, 0.0);
+        let v_body = Vector3::new(35.02, 0.0, 0.0);
+        let mu = VENUS.mu_km3_s2;
+        let r_venus = VENUS.mean_radius_km;
+        let h_p = 300.0;
+        let rp = r_venus + h_p;
+        let theta = 0.0; // b_plane_angle
+
+        let (v_out, delta) = compute_flyby(v_sc, v_body, mu, rp, theta).unwrap();
+
+        let expected_v_out = Vector3::new(31.73, 1.766, 0.0);
+        let expected_delta_deg = 103.6;
+
+        assert_relative_eq!(v_out, expected_v_out, epsilon = 1e-1); // 1e-1 km/s tolerance as in Python (rtol=1e-3 ~ 0.03 km/s)
+        assert_relative_eq!(delta.to_degrees(), expected_delta_deg, epsilon = 1e-1);
+    }
 
     #[test]
     fn flyby_preserves_hyperbolic_excess_speed_in_planet_frame() {

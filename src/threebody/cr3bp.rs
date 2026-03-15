@@ -1,6 +1,39 @@
 use nalgebra::SVector;
 
 use crate::threebody::ThreeBodyError;
+use crate::bodies::Body;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SystemChars {
+    /// Dimensionless mass parameter mu = m2 / (m1 + m2)
+    pub mu: f64,
+    /// Characteristic length l* (distance between primaries) in km
+    pub lstar_km: f64,
+    /// Characteristic time t* in seconds
+    pub tstar_sec: f64,
+}
+
+impl SystemChars {
+    /// Creates a SystemChars instance from two bodies.
+    /// Assumes `primary` is the more massive body and `secondary` orbits it.
+    /// `secondary` must have `mean_semi_major_axis_km` defined.
+    pub fn from_primaries(primary: &Body, secondary: &Body) -> Result<Self, ThreeBodyError> {
+        let lstar = secondary
+            .mean_semi_major_axis_km
+            .ok_or(ThreeBodyError::MissingSemiMajorAxis)?;
+        let mu1 = primary.mu_km3_s2;
+        let mu2 = secondary.mu_km3_s2;
+
+        let mu = mu2 / (mu1 + mu2);
+        let tstar = (lstar.powi(3) / (mu1 + mu2)).sqrt();
+
+        Ok(Self {
+            mu,
+            lstar_km: lstar,
+            tstar_sec: tstar,
+        })
+    }
+}
 
 pub type Cr3bpState = SVector<f64, 6>;
 
@@ -45,9 +78,27 @@ pub fn jacobi_constant(state: &Cr3bpState, mu: f64) -> Result<f64, ThreeBodyErro
 mod tests {
     use approx::assert_relative_eq;
 
+    use crate::bodies::{EARTH, MOON};
     use crate::threebody::lagrange::triangular_lagrange_points;
 
-    use super::{Cr3bpState, jacobi_constant, state_derivative};
+    use super::{Cr3bpState, SystemChars, jacobi_constant, state_derivative};
+
+    #[test]
+    fn system_chars_earth_moon() {
+        let sys = SystemChars::from_primaries(&EARTH, &MOON).unwrap();
+        
+        let expected_mu = 0.0121505856;
+        let expected_lstar = 384_400.0;
+        let _expected_tstar = 375_190.25852; // sqrt(384400^3 / (398600.4418 + 4902.79981))
+
+        assert_relative_eq!(sys.mu, expected_mu, epsilon = 1e-5);
+        assert_relative_eq!(sys.lstar_km, expected_lstar, epsilon = 1e-5);
+        // tstar in python test: calculate_tstar(Earth.k, Moon.k, Moon.mean_a)
+        // Let's rely on calculation
+        let mu_sum = EARTH.mu_km3_s2 + MOON.mu_km3_s2;
+        let calc_tstar = (expected_lstar.powi(3) / mu_sum).sqrt();
+        assert_relative_eq!(sys.tstar_sec, calc_tstar, epsilon = 1e-5);
+    }
 
     #[test]
     fn l4_is_equilibrium_with_zero_velocity() {
