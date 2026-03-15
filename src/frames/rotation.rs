@@ -21,7 +21,7 @@ pub fn compute_rotational_elements(body: Body, tdb_seconds_from_j2000: f64) -> R
         "Uranus" => (257.311, -15.175, 203.81),
         "Neptune" => (299.33373896, 42.95035902, 249.99600757),
         "Moon" => (266.85773344495135, 65.64110274784535, 41.1952639807452),
-        "Earth" => (0.0, 90.0, 0.0), // Placeholder for Earth (should use GAST/GMST if proper)
+        "Earth" => (0.0, 90.0, 280.4606), // Approx GMST at J2000
         _ => (0.0, 90.0, 0.0),
     };
 

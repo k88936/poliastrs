@@ -1,11 +1,6 @@
 use nalgebra::Vector3;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LambertError {
-    MultiRevolutionUnsupported,
-    PhaseAngle180Deg,
-    MaximumIterationsReached,
-}
+use super::LambertError;
 
 pub fn lambert(
     mu_km3_s2: f64,
@@ -105,7 +100,7 @@ mod tests {
 
     use crate::bodies::EARTH;
 
-    use super::lambert;
+    use super::{lambert, LambertError};
 
     #[test]
     fn lambert_vallado75_reference_case() {
@@ -121,5 +116,59 @@ mod tests {
             assert_relative_eq!(va[i], expected_va[i], max_relative = 1e-5);
             assert_relative_eq!(vb[i], expected_vb[i], max_relative = 1e-4);
         }
+    }
+
+    #[test]
+    fn test_vallado_not_implemented_multirev() {
+        let mu = 1.0;
+        let r0 = [1.0, 0.0, 0.0];
+        let r = [0.0, 1.0, 0.0];
+        let tof = 1.0;
+        
+        let result = lambert(mu, r0, r, tof, 1, true, true, 35, 1e-8);
+        assert_eq!(result, Err(LambertError::MultiRevolutionUnsupported));
+    }
+
+    #[test]
+    fn test_issue840() {
+        let mu = 398600.4418;
+        let r0 = [10000.0, 0.0, 0.0];
+        let rf = [8000.0, -5000.0, 0.0];
+        let tof = 2.0 * 3600.0;
+
+        let expected_va = [0.36591277, 5.8228806, 0.0];
+        let expected_vb = [3.99397599, 4.78236576, 0.0];
+
+        // prograde = false
+        let (va, vb) = lambert(mu, r0, rf, tof, 0, false, true, 35, 1e-8).unwrap();
+
+        for i in 0..3 {
+            assert_relative_eq!(va[i], expected_va[i], max_relative = 1e-6);
+            assert_relative_eq!(vb[i], expected_vb[i], max_relative = 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_issue1362() {
+        use crate::iod::izzo;
+        use nalgebra::Vector3;
+
+        let mu = 1.32712440018e11;
+        let r0 = [-7.52669489e07, -3.72205805e08, -9.17950811e06];
+        let rf = [-6.15200041e06, -3.91985660e08, -5.06520860e05];
+        let tof = 3489390.108265222;
+
+        let (va_v, vb_v) = lambert(mu, r0, rf, tof, 0, true, true, 35, 1e-8).unwrap();
+        
+        let r0_vec = Vector3::new(r0[0], r0[1], r0[2]);
+        let rf_vec = Vector3::new(rf[0], rf[1], rf[2]);
+        // prograde=true
+        let (va_i, vb_i) = izzo(mu, r0_vec, rf_vec, tof, 0, true, true, 35, 1e-8).unwrap();
+
+        let va_v_vec = Vector3::new(va_v[0], va_v[1], va_v[2]);
+        let vb_v_vec = Vector3::new(vb_v[0], vb_v[1], vb_v[2]);
+
+        assert_relative_eq!(va_v_vec, va_i, max_relative = 1e-6);
+        assert_relative_eq!(vb_v_vec, vb_i, max_relative = 1e-6);
     }
 }

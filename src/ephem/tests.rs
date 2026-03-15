@@ -5,9 +5,6 @@ use approx::assert_relative_eq;
 use nalgebra::Vector3;
 use crate::bodies::EARTH;
 
-// Helper to create J2000 epoch
-// const J2000: f64 = 0.0;
-
 #[test]
 fn test_ephem_sample_no_arguments_returns_exactly_same_input() {
     let epochs = vec![0.0, 100.0, 200.0, 300.0];
@@ -31,53 +28,85 @@ fn test_ephem_sample_no_arguments_returns_exactly_same_input() {
 }
 
 #[test]
+fn test_ephem_sample_same_epochs_returns_same_input() {
+    let epochs = vec![0.0, 100.0, 200.0, 300.0];
+    let coordinates = vec![
+        Vector3::new(1.0, 0.0, 0.0),
+        Vector3::new(0.9, 0.1, 0.0),
+        Vector3::new(0.8, 0.2, 0.0),
+        Vector3::new(0.7, 0.3, 0.0),
+    ];
+    let plane = Plane::EarthEquator;
+    
+    let ephem = Ephem::new(epochs.clone(), coordinates.clone(), plane);
+    
+    let result = ephem.sample(Some(epochs.clone()), LinearInterpolator);
+    
+    assert_eq!(result.len(), 4);
+    for (i, res) in result.iter().enumerate() {
+        assert_relative_eq!(*res, coordinates[i], epsilon=1e-12);
+    }
+}
+
+#[test]
+fn test_ephem_sample_existing_epochs_returns_corresponding_input() {
+    let epochs = vec![0.0, 100.0, 200.0, 300.0];
+    let coordinates = vec![
+        Vector3::new(1.0, 0.0, 0.0),
+        Vector3::new(0.9, 0.1, 0.0),
+        Vector3::new(0.8, 0.2, 0.0),
+        Vector3::new(0.7, 0.3, 0.0),
+    ];
+    let plane = Plane::EarthEquator;
+    
+    let ephem = Ephem::new(epochs.clone(), coordinates.clone(), plane);
+    
+    // Sample every 2nd epoch: 0, 200
+    let target_epochs = vec![epochs[0], epochs[2]];
+    let result = ephem.sample(Some(target_epochs), LinearInterpolator);
+    
+    assert_eq!(result.len(), 2);
+    assert_relative_eq!(result[0], coordinates[0], epsilon=1e-12);
+    assert_relative_eq!(result[1], coordinates[2], epsilon=1e-12);
+}
+
+#[test]
+fn test_rv_no_parameters_returns_input_vectors() {
+    let epochs = vec![0.0, 100.0];
+    let coordinates = vec![
+        Vector3::new(1.0, 0.0, 0.0),
+        Vector3::new(0.9, 0.1, 0.0),
+    ];
+    let velocities = vec![
+        Vector3::new(0.0, 1.0, 0.0),
+        Vector3::new(-0.1, 0.9, 0.0),
+    ];
+    
+    let mut ephem = Ephem::new(epochs.clone(), coordinates.clone(), Plane::EarthEquator);
+    ephem.velocities = Some(velocities.clone());
+    
+    let (r, v) = ephem.rv(None);
+    
+    assert_eq!(r.len(), 2);
+    assert_eq!(v.len(), 2);
+    
+    for i in 0..2 {
+        assert_relative_eq!(r[i], coordinates[i], epsilon=1e-12);
+        assert_relative_eq!(v[i], velocities[i], epsilon=1e-12);
+    }
+}
+
+#[test]
 fn test_from_orbit_has_desired_properties() {
     // Port of test_from_orbit_has_desired_properties
-    // Setup Orbit at J2000 (default)
-    let r = Vector3::new(-1000.0, -2000.0, 3100.0); // km
-    let v = Vector3::new(-1.836, 5.218, 4.433); // km/s
-    let orb = Orbit::from_vectors(EARTH, r.into(), v.into()); // Into array/Vector3
+    let r = [-1000.0, -2000.0, 3100.0]; // km
+    let v = [-1.836, 5.218, 4.433]; // km/s
+    let orb = Orbit::from_vectors(EARTH, r, v);
     
-    // Target epochs (TDB seconds from J2000)
-    // 2020-02-01 12:00:00 -> approx 20 years + 1 month
-    // 2020-02-13
-    // 2020-03-04
-    // 2020-03-17
-    
-    // NOTE: Rust standard library doesn't parse dates easily without Chrono.
-    // I'll calculate J2000 offset for these dates.
-    // J2000 is 2000-01-01 12:00:00 TDB.
-    // 2020-01-01 12:00:00 is 20 * 365.25 days = 7305 days.
-    // 2020 is leap year.
-    // 2020-02-01 is 31 days after Jan 1.
-    // 2020-02-13 is 12 days later.
-    // 2020-03-04 is 20 days later (Feb has 29 days in 2020).
-    // 2020-03-17 is 13 days later.
-    
-    // Let's approximate or hardcode offsets if possible.
-    // Python astropy Time("2020-02-01 12:00:00", scale="tdb").jd - 2451545.0
-    // I can't run python here.
-    // But I can use approximate days.
-    // Julian Day J2000.0 = 2451545.0
-    // Jan 1 2020 is roughly 7305 days.
-    // Exact days? 
-    // 2000 (leap), 2004, 2008, 2012, 2016. 5 leap years.
-    // 20 * 365 + 5 = 7305 days exactly?
-    // 2000 is leap.
-    // So days = 7305.
-    
-    // Feb 01 = Jan 31 + 1 = day 32 of year? No, Jan has 31. So Feb 1 is day 32 (0-indexed 31).
-    // Offset = 7305 + 31 = 7336 days.
-    
-    // Feb 13 = 7336 + 12 = 7348 days.
-    // Mar 04 = 7336 + 29 (Feb) + 3 (Mar) = 7336 + 32 = 7368 days. (Feb 2020 has 29).
-    // Mar 17 = 7368 + 13 = 7381 days.
-    
-    // Correction for UTC to TDB (approx 69.184s)
-    let offset = 69.184;
-
-    let days = vec![7336.0, 7348.0, 7368.0, 7381.0];
-    let epochs: Vec<f64> = days.iter().map(|d| d * 86400.0 + offset).collect();
+    // J2000 = 2451545.0
+    // Exact TDB seconds from J2000 for UTC dates
+    // Calculated using astropy.time.Time(..., scale='utc').tdb - Time('J2000', scale='tdb')
+    let epochs = vec![633830469.1847928, 634867269.1850804, 636595269.1854556, 637718469.1856025];
     
     let ephem = Ephem::from_orbit(orb, epochs.clone(), Plane::EarthEquator);
     let coords = ephem.sample(None, LinearInterpolator);
@@ -91,14 +120,8 @@ fn test_from_orbit_has_desired_properties() {
     ];
     
     for (i, coord) in coords.iter().enumerate() {
-        // Assert relative equality with some tolerance (due to time calc diffs)
-        assert_relative_eq!(coord, &expected[i], epsilon = 1.0); // 1 km tolerance for time diffs
+        // Use reasonable tolerance for cross-language propagation
+        // Differences might be due to propagator precision or slight constant mismatches
+        assert_relative_eq!(coord, &expected[i], epsilon = 0.1);
     }
-}
-
-#[test]
-#[ignore]
-fn test_ephem_from_body_has_expected_properties() {
-    // Requires VSOP87 or Ephemeris
-    // TODO: Implement VSOP87
 }

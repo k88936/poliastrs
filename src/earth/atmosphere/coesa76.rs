@@ -188,6 +188,7 @@ impl COESA76 {
             return Err("Thermal conductivity in COESA76 has just been implemented up to 86km.".to_string());
         }
         let t = self.temperature(z);
+        // Formula: k = (2.64638e-3 * T^1.5) / (T + 245.4 * 10^(-12/T))
         Ok((2.64638e-3 * t.powf(1.5)) / (t + 245.4 * 10.0_f64.powf(-12.0 / t)))
     }
 }

@@ -3,8 +3,11 @@ pub struct Body {
     pub name: &'static str,
     pub mu_km3_s2: f64,
     pub mean_radius_km: f64,
+    pub equatorial_radius_km: f64,
     pub mean_semi_major_axis_km: Option<f64>,
     pub rotational_period_day: f64,
+    pub j2: f64,
+    pub flattening: f64,
 }
 
 impl Body {
@@ -21,6 +24,11 @@ impl Body {
         } else {
             2.0 * PI / period_s
         }
+    }
+
+    /// Polar radius derived from flattening
+    pub fn polar_radius_km(&self) -> f64 {
+        self.equatorial_radius_km * (1.0 - self.flattening)
     }
 
     /// Creates a new Body relative to a reference Body.
@@ -43,8 +51,11 @@ impl Body {
             name,
             mu_km3_s2: reference.mu_km3_s2 * mu_ratio,
             mean_radius_km: reference.mean_radius_km * radius_ratio,
+            equatorial_radius_km: reference.equatorial_radius_km * radius_ratio,
             mean_semi_major_axis_km: None,
             rotational_period_day,
+            j2: reference.j2,
+            flattening: reference.flattening,
         }
     }
 }
@@ -53,80 +64,110 @@ pub const EARTH: Body = Body {
     name: "Earth",
     mu_km3_s2: 398600.4418,
     mean_radius_km: 6371.0084,
+    equatorial_radius_km: 6378.137,
     mean_semi_major_axis_km: Some(149_597_870.7),
     rotational_period_day: 0.9972698,
+    j2: 0.00108263,
+    flattening: 0.0033528131,
 };
 
 pub const SUN: Body = Body {
     name: "Sun",
     mu_km3_s2: 132_712_440_018.0,
     mean_radius_km: 695_700.0,
+    equatorial_radius_km: 696342.0,
     mean_semi_major_axis_km: None,
     rotational_period_day: 25.38,
+    j2: 0.0,
+    flattening: 0.0,
 };
 
 pub const MERCURY: Body = Body {
     name: "Mercury",
     mu_km3_s2: 22032.09,
     mean_radius_km: 2439.4,
+    equatorial_radius_km: 2439.7,
     mean_semi_major_axis_km: Some(57_909_050.0),
     rotational_period_day: 58.6462,
+    j2: 0.0,
+    flattening: 0.0,
 };
 
 pub const VENUS: Body = Body {
     name: "Venus",
     mu_km3_s2: 324858.592,
     mean_radius_km: 6051.8,
+    equatorial_radius_km: 6051.8,
     mean_semi_major_axis_km: Some(108_208_000.0),
     rotational_period_day: -243.01,
+    j2: 4.458e-6,
+    flattening: 0.0,
 };
 
 pub const MARS: Body = Body {
     name: "Mars",
     mu_km3_s2: 42828.3744,
     mean_radius_km: 3389.5,
+    equatorial_radius_km: 3396.2,
     mean_semi_major_axis_km: Some(227_939_200.0),
     rotational_period_day: 1.02595675,
+    j2: 1.96045e-3,
+    flattening: 0.006485,
 };
 
 pub const JUPITER: Body = Body {
     name: "Jupiter",
     mu_km3_s2: 126_712_762.53,
     mean_radius_km: 69911.0,
+    equatorial_radius_km: 71492.0,
     mean_semi_major_axis_km: Some(778_547_200.0),
     rotational_period_day: 0.41354,
+    j2: 1.4736e-2,
+    flattening: 0.06487,
 };
 
 pub const SATURN: Body = Body {
     name: "Saturn",
     mu_km3_s2: 37_931_207.7,
     mean_radius_km: 58232.0,
+    equatorial_radius_km: 60268.0,
     mean_semi_major_axis_km: Some(1_433_449_370.0),
     rotational_period_day: 0.4375,
+    j2: 1.6298e-2,
+    flattening: 0.09796,
 };
 
 pub const URANUS: Body = Body {
     name: "Uranus",
     mu_km3_s2: 5_793_939.3,
     mean_radius_km: 25362.0,
+    equatorial_radius_km: 25559.0,
     mean_semi_major_axis_km: Some(2_872_460_000.0),
     rotational_period_day: -0.65,
+    j2: 3.34343e-3,
+    flattening: 0.0229,
 };
 
 pub const NEPTUNE: Body = Body {
     name: "Neptune",
     mu_km3_s2: 6_836_527.10058,
     mean_radius_km: 24622.0,
+    equatorial_radius_km: 24764.0,
     mean_semi_major_axis_km: Some(4_495_060_000.0),
     rotational_period_day: 0.768,
+    j2: 3.411e-3,
+    flattening: 0.0171,
 };
 
 pub const MOON: Body = Body {
     name: "Moon",
     mu_km3_s2: 4902.79981,
     mean_radius_km: 1737.4,
+    equatorial_radius_km: 1738.1,
     mean_semi_major_axis_km: Some(384_400.0),
     rotational_period_day: 27.32166,
+    j2: 2.027e-4,
+    flattening: 0.0012,
 };
 
 #[cfg(test)]

@@ -2,14 +2,7 @@ use nalgebra::Vector3;
 use std::f64::consts::PI;
 use crate::core::hyper::hyp2f1b;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LambertError {
-    CollinearVectors,
-    NoFeasibleSolution,
-    ConvergenceFailed,
-    DerivativeZero,
-    TimeOfFlightNegative,
-}
+use super::LambertError;
 
 pub fn izzo(
     mu: f64,
@@ -379,5 +372,81 @@ mod tests {
 
         assert_relative_eq!(va, expected_va, max_relative = 1e-5);
         assert_relative_eq!(vb, expected_vb, max_relative = 1e-5);
+    }
+
+    #[test]
+    fn test_molniya_der_one_full_revolution() {
+        let mu = 398600.4418;
+        let r0 = Vector3::new(22592.145603, -1599.915239, -19783.950506);
+        let r = Vector3::new(1922.067697, 4054.157051, -8925.727465);
+        let tof = 10.0 * 3600.0;
+
+        let expected_va_l = Vector3::new(0.50335770, 0.61869408, -1.57176904);
+        let expected_vb_l = Vector3::new(-4.18334626, -1.13262727, 6.13307091);
+
+        let expected_va_r = Vector3::new(-2.45759553, 1.16945801, 0.43161258);
+        let expected_vb_r = Vector3::new(-5.53841370, 0.01822220, 5.49641054);
+
+        // M=1, lowpath=False
+        let (va_l, vb_l) = izzo(mu, r0, r, tof, 1, true, false, 35, 1e-8).unwrap();
+        
+        // M=1, lowpath=True
+        let (va_r, vb_r) = izzo(mu, r0, r, tof, 1, true, true, 35, 1e-8).unwrap();
+
+        assert_relative_eq!(va_l, expected_va_l, max_relative = 1e-5);
+        assert_relative_eq!(vb_l, expected_vb_l, max_relative = 1e-5);
+        assert_relative_eq!(va_r, expected_va_r, max_relative = 1e-5);
+        assert_relative_eq!(vb_r, expected_vb_r, max_relative = 1e-4);
+    }
+
+    #[test]
+    fn test_raises_exception_for_non_feasible_solution() {
+        let mu = 398600.4418;
+        let r0 = Vector3::new(22592.145603, -1599.915239, -19783.950506);
+        let r = Vector3::new(1922.067697, 4054.157051, -8925.727465);
+        let tof = 5.0 * 3600.0;
+
+        // M=1
+        let result = izzo(mu, r0, r, tof, 1, true, false, 35, 1e-8);
+        assert_eq!(result, Err(LambertError::NoFeasibleSolution));
+    }
+
+    #[test]
+    fn test_collinear_vectors_input() {
+        let mu = 398600.4418;
+        let r0 = Vector3::new(22592.145603, -1599.915239, -19783.950506);
+        let r = r0; // Collinear
+        let tof = 5.0 * 3600.0;
+
+        let result = izzo(mu, r0, r, tof, 0, true, false, 35, 1e-8);
+        assert_eq!(result, Err(LambertError::CollinearVectors));
+    }
+
+    #[test]
+    fn test_minimum_time_of_flight_convergence() {
+        let lambda = -1.0;
+        for m in 1..=3 {
+            let (x_t_min_expected, t_min_expected) = compute_t_min(lambda, m, 10, 1e-8).unwrap();
+            let y = compute_y(x_t_min_expected, lambda);
+            let t_min = tof_equation_y(x_t_min_expected, y, 0.0, lambda, m);
+            assert_relative_eq!(t_min_expected, t_min, max_relative = 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_issue840() {
+        let mu = 398600.4418;
+        let r0 = Vector3::new(10000.0, 0.0, 0.0);
+        let rf = Vector3::new(8000.0, -5000.0, 0.0);
+        let tof = 2.0 * 3600.0;
+
+        let expected_va = Vector3::new(0.36591277, 5.8228806, 0.0);
+        let expected_vb = Vector3::new(3.99397599, 4.78236576, 0.0);
+
+        // prograde = true
+        let (va, vb) = izzo(mu, r0, rf, tof, 0, true, true, 35, 1e-8).unwrap();
+
+        assert_relative_eq!(va, expected_va, max_relative = 1e-6);
+        assert_relative_eq!(vb, expected_vb, max_relative = 1e-6);
     }
 }

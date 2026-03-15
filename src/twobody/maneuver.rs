@@ -122,15 +122,130 @@ impl Maneuver {
             ],
         }
     }
+
+    pub fn correct_pericenter(orbit: &Orbit, max_delta_r_km: f64) -> Result<Self, String> {
+        let j2 = orbit.attractor.j2;
+        if j2 == 0.0 {
+            return Err(format!("The correction maneuver is not yet supported for {}", orbit.attractor.name));
+        }
+        
+        let ecc = orbit.ecc();
+        if ecc > 0.001 {
+            return Err(format!("The correction maneuver is not yet supported with {}, it should be less than or equal to 0.001", ecc));
+        }
+
+        let r_attractor = orbit.attractor.equatorial_radius_km;
+        let k = orbit.attractor.mu_km3_s2;
+        let a = orbit.a_km();
+        let inc = orbit.inc_rad();
+
+        let p = a * (1.0 - ecc.powi(2));
+        let n = (k / a.powi(3)).sqrt();
+
+        let dw = ((3.0 * n * r_attractor.powi(2) * j2) / (4.0 * p.powi(2))) * (4.0 - 5.0 * inc.sin().powi(2));
+
+        let mut delta_w = 2.0 * (1.0 + ecc) * max_delta_r_km;
+        delta_w /= a * ecc * (1.0 - ecc);
+        delta_w = delta_w.sqrt();
+
+        let delta_t = (delta_w / dw).abs();
+        let delta_v = 0.5 * n * a * ecc * delta_w.abs();
+
+        let vf = orbit.state.v_km_s.normalize() * delta_v;
+
+        Ok(Self {
+            impulses: vec![
+                (delta_t, vf),
+            ],
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bodies::EARTH;
+    use crate::bodies::{EARTH, MERCURY};
     use crate::twobody::orbit::Orbit;
     use crate::frames::Plane;
     use approx::assert_relative_eq;
+
+    #[test]
+    fn test_correct_pericenter() {
+        use crate::frames::Plane;
+        use nalgebra::Vector3;
+
+        let max_delta_r = 30.0;
+        let a = 6570.0;
+        let ecc = 0.001;
+        let inc = 0.7855682278773197;
+
+        let ss0 = Orbit::from_keplerian(
+            EARTH,
+            a,
+            ecc,
+            inc,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            Plane::EarthEquator,
+        );
+
+        let maneuver = Maneuver::correct_pericenter(&ss0, max_delta_r).unwrap();
+
+        let expected_t = 2224141.03634;
+        let expected_v = Vector3::new(0.0, 0.0083290328315531, 0.00833186625871848);
+
+        let (t, v) = maneuver.impulses[0];
+
+        assert_relative_eq!(t, expected_t, epsilon = 1.0);
+        assert_relative_eq!(v, expected_v, max_relative = 1e-5);
+    }
+
+    #[test]
+    fn test_correct_pericenter_j2_exception() {
+        use crate::frames::Plane;
+        use crate::bodies::MERCURY;
+
+        let ss0 = Orbit::from_keplerian(
+            MERCURY,
+            1000.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            Plane::EarthEquator,
+        );
+        let max_delta_r = 30.0;
+        
+        let result = Maneuver::correct_pericenter(&ss0, max_delta_r);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "The correction maneuver is not yet supported for Mercury");
+    }
+
+    #[test]
+    fn test_correct_pericenter_ecc_exception() {
+        use crate::frames::Plane;
+
+        let ss0 = Orbit::from_keplerian(
+            EARTH,
+            1000.0,
+            0.5, // ecc > 0.001
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            Plane::EarthEquator,
+        );
+        let max_delta_r = 30.0;
+        
+        let result = Maneuver::correct_pericenter(&ss0, max_delta_r);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("it should be less than or equal to 0.001"));
+    }
 
     #[test]
     fn test_hohmann_maneuver() {
